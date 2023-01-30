@@ -9,6 +9,7 @@ simplesimple = {git = "https://github.com/timtroendle/simple-simple"}
 matplotlib = "*"
 numpy = "*"
 jupyter = "*"
+meteostat = "*"
 
 [dev-packages]
 
