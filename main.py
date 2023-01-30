@@ -19,8 +19,8 @@ env = eval_env = BuildingEnv(
     maximum_cooling_power=-10000,
     maximum_heating_power=10000,
     initial_building_temperature=16,
-    time_step_size=timedelta(minutes=15),
-    conditioned_floor_area=conditioned_floor_area
+    time_step=timedelta(minutes=15),
+    floor_area=conditioned_floor_area
 )
 
 # %%

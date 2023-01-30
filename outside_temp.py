@@ -15,27 +15,34 @@ class OutsideTemp:
     file_name = "outside_temps.csv"
     temperature_df = pd.read_csv(file_name)
 
-    def __init__(self, time_step_size):
+    def __init__(self, time_step_size, days=timedelta(days=1)):
         self.time_step_size = time_step_size
         self.interp_df = self.interpolate(time_step_size, self.temperature_df)
         self.time_list = self.interp_df.index.to_list()
+        self.start = self.sample(days=days)
+        self.days = days
+        self.sample()
 
-    def sample(self, days=timedelta(days=1)):
+    def get_outside_temperature(self, i):
         """
-        This function takes in an integer 'days' and returns a random sample of the temperature data for that many days.
-        The sample starts at midnight of a random day in the available temperature data.
-        If the requested number of days is greater than the available temperature data, a ValueError is raised.
+        Interpolate temperature from the outside temperature list
+        :return: the interpolated temperature
         """
-        hours = days / timedelta(hours=1)
-        remaining_temp = len(self.temperature_df) - ceil(
-            hours)  # see if the requested number of days fits into the data
+        return self.interp_df.iloc[self.start + i].temp
+
+    def get_time_hours(self, i):
+        return int(self.time_list[self.start + i].strftime("%H%M"))
+
+    def sample(self):
+        hours = self.days / timedelta(hours=1)
+        # see if the requested number of days fits into the data
+        remaining_temp = len(self.temperature_df) - ceil(hours)
         if remaining_temp < 0:
             raise ValueError(
-                f"Attempted to run for longer ({days}) than temperature data is available ({len(self.temperature_df)})", )
+                f"Attempted to run for longer ({self.days}) than temperature data is available ({len(self.temperature_df)})")
         remaining_temp = np.interp(remaining_temp, (0, len(self.temperature_df) - 1), (0, len(self.interp_df) - 1))
-        random_index = random.randint(0, remaining_temp)
-        sample = self.interp_df.loc[random_index:random_index + hours]
-        return sample.index.to_list(), sample["temp"].to_list()
+        self.start = random.randint(0, remaining_temp)
+        return self
 
     @classmethod
     def interpolate(cls, time_step_size, df):
