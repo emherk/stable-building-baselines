@@ -11,6 +11,7 @@ numpy = "*"
 jupyter = "*"
 meteostat = "*"
 ipython = "*"
+pylint = "*"
 
 [dev-packages]
 

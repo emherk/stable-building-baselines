@@ -1,6 +1,8 @@
 # %%
-import enum
 from datetime import timedelta
+from enum import auto, Enum
+from functools import partial
+from random import randint
 
 import gym
 import numpy as np
@@ -18,10 +20,10 @@ class BuildingEnv(gym.Env):
     metadata = {'render.modes': ['human']}
     COMFORT_PENALTY = -10000
 
-    class RewardTypes(enum.Enum):
-        ENERGY = "energy_use"
-        COMFORT = "comfort"
-        CHANGE = "temperature_change"
+    class RewardTypes(str, Enum):
+        ENERGY = auto()
+        COMFORT = auto()
+        CHANGE = auto()
 
     def __init__(
             self, heat_mass_capacity,
@@ -30,7 +32,6 @@ class BuildingEnv(gym.Env):
             maximum_heating_power,
             time_step: timedelta,
             floor_area,
-            initial_building_temperature=16,
             episode_length=timedelta(days=2),
             desired_temperature=22,
     ):
@@ -48,14 +49,14 @@ class BuildingEnv(gym.Env):
         self.temp_model = OutsideTemp(time_step, episode_length=episode_length)
         self.temp_model.new_sample()
         self.prev_temp = self.temp_model.get_temperature(0)
-        self.initial_temperature = initial_building_temperature
+        self.random_temp = partial(randint, 12, 33)
 
         # Set up the building model.
         self.building = Building(heat_mass_capacity=heat_mass_capacity,
                                  heat_transmission=heat_transmission,
                                  maximum_cooling_power=maximum_cooling_power,
                                  maximum_heating_power=maximum_heating_power,
-                                 initial_building_temperature=initial_building_temperature,
+                                 initial_building_temperature=self.random_temp(),
                                  time_step_size=time_step,
                                  conditioned_floor_area=floor_area)
 
@@ -65,8 +66,6 @@ class BuildingEnv(gym.Env):
         self.episode_length_steps = episode_length / time_step
         self.i = 0
         self.current_rewards = {}
-
-        self.max_energy_use_heating = maximum_heating_power * self.time_step.total_seconds()
 
         # Set up the action and observation spaces for the environment.
         # This is a continuous action space, with two actions: heating setpoint and cooling setpoint.
@@ -124,21 +123,18 @@ class BuildingEnv(gym.Env):
     def get_comfort_reward(self):
         if self.desired_temperature - 1 <= self.building.current_temperature <= self.desired_temperature + 1:
             return 0
-        else:
-            return self.COMFORT_PENALTY
+        return self.COMFORT_PENALTY
 
     def get_energy_use_reward(self):
         energy_use = abs(self.time_step.total_seconds() * self.building.thermal_power)
-        # Scale reward to [0,3]
         return -energy_use
-        # penalize if out of bounds
 
     def reset(self):
         self.i = 0
         self.temp_model.new_sample()
         self.prev_temp = self.temp_model.get_temperature(0)
         time = self.temp_model.get_time(0)
-        self.building.current_temperature = self.initial_temperature
+        self.building.current_temperature = self.random_temp()
         self.building.thermal_power = 0
         obs = np.array([self.building.current_temperature,
                         self.building.thermal_power,

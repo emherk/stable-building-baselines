@@ -1,7 +1,7 @@
 # %%
 from datetime import timedelta
 
-import numpy as np
+from gym.wrappers import Monitor
 from matplotlib import pyplot as plt
 from stable_baselines3 import A2C
 from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnNoModelImprovement
@@ -11,29 +11,16 @@ from stable_baselines3.common.vec_env import VecNormalize
 from building_env import BuildingEnv
 from building_plot_callback import BuildingPlotCallback
 
-info_keywords = (
-    "Current temperature",
-    "Thermal power",
-    "Outside temperature",
-    "Energy use reward",
-    "Comfort reward",
-    "Temperature change reward"
-)
-
-# %%
-
 floor_area = 100
 env = eval_env = BuildingEnv(
     heat_mass_capacity=165000 * floor_area,
     heat_transmission=200,
     maximum_cooling_power=-10000,
     maximum_heating_power=10000,
-    initial_building_temperature=16,
     time_step=timedelta(minutes=15),
     floor_area=floor_area
 )
 
-# %%
 
 
 log_dir = "tmp/gym"
@@ -46,13 +33,12 @@ plot_callback = BuildingPlotCallback(log_dir)
 
 # Stop training if there is no improvement after more than 3 evaluations
 stop_train_callback = StopTrainingOnNoModelImprovement(max_no_improvement_evals=3, min_evals=1, verbose=1)
-eval_callback = EvalCallback(eval_env, eval_freq=100, callback_after_eval=stop_train_callback, verbose=1)
+eval_callback = EvalCallback(eval_env, eval_freq=1000, callback_after_eval=stop_train_callback, verbose=1)
 
 # %%
 model = A2C("MlpPolicy", env).learn(total_timesteps=1000, callback=[plot_callback])
 
 # %%
-from gym.wrappers import Monitor
 
 monitor: Monitor = env.venv.envs[0]
 rewards = monitor.get_episode_rewards()

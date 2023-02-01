@@ -19,10 +19,6 @@ class BuildingPlotCallback(BaseCallback):
     def _on_step(self):
         env = self.model.get_env()
 
-        step = env.get_attr('i')[0]
-        if step == 0:
-            self.on_reset()
-
         current_rewards = env.get_attr('current_rewards')[0]
         for key, value in current_rewards.items():
             self.rewards[key].append(value)
@@ -30,13 +26,6 @@ class BuildingPlotCallback(BaseCallback):
         building = env.get_attr('building')[0]
         self.temperatures.append(building.current_temperature)
         self.thermal_powers.append(abs(building.thermal_power))
-
-    def on_reset(self):
-        self.temperatures = []
-        self.thermal_powers = []
-        self.rewards = {BuildingEnv.RewardTypes.ENERGY: [],
-                        BuildingEnv.RewardTypes.COMFORT: [],
-                        BuildingEnv.RewardTypes.CHANGE: []}
 
     def _on_training_end(self):
         self.plot_output_2(self.temperatures, self.thermal_powers, "Temperature", "Power")
