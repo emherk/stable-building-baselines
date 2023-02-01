@@ -1,4 +1,5 @@
 # %%
+import enum
 from datetime import timedelta
 
 import gym
@@ -15,17 +16,24 @@ class BuildingEnv(gym.Env):
     """
 
     metadata = {'render.modes': ['human']}
+    COMFORT_PENALTY = -10000
 
-    def __init__(self, heat_mass_capacity,
-                 heat_transmission,
-                 maximum_cooling_power,
-                 maximum_heating_power,
-                 time_step: timedelta,
-                 floor_area,
-                 initial_building_temperature=16,
-                 episode_length=timedelta(days=2),
-                 desired_temperature=21,
-                 ):
+    class RewardTypes(enum.Enum):
+        ENERGY = "energy_use"
+        COMFORT = "comfort"
+        CHANGE = "temperature_change"
+
+    def __init__(
+            self, heat_mass_capacity,
+            heat_transmission,
+            maximum_cooling_power,
+            maximum_heating_power,
+            time_step: timedelta,
+            floor_area,
+            initial_building_temperature=16,
+            episode_length=timedelta(days=2),
+            desired_temperature=22,
+    ):
         """
         :param heat_mass_capacity: The heat mass capacity of the building.
         :param heat_transmission: The heat transmission rate of the building.
@@ -56,6 +64,7 @@ class BuildingEnv(gym.Env):
         self.time_step = time_step
         self.episode_length_steps = episode_length / time_step
         self.i = 0
+        self.current_rewards = {}
 
         self.max_energy_use_heating = maximum_heating_power * self.time_step.total_seconds()
 
@@ -86,25 +95,42 @@ class BuildingEnv(gym.Env):
         obs = np.array([self.building.current_temperature, self.building.thermal_power, time], dtype=float32)
         reward = self.calculate_reward()
         done = self.i >= self.episode_length_steps
-        info = {"Current temperature": self.building.current_temperature, "Thermal power": self.building.thermal_power}
+        info = {}
+        #     "Current temperature": self.building.current_temperature,
+        #     "Thermal power": self.building.thermal_power,
+        # }
 
         return obs, reward, done, info
 
     def calculate_reward(self):
-        return 0.5 * self.get_energy_use_reward() + self.get_comfort_reward() + 2 * self.get_temp_change_reward()
+        r_energy_use = self.get_energy_use_reward()
+        r_comfort = self.get_comfort_reward()
+        r_temp_change = self.get_temp_change_reward()
+
+        self.current_rewards = {
+            self.RewardTypes.ENERGY: r_energy_use,
+            self.RewardTypes.COMFORT: r_comfort,
+            self.RewardTypes.CHANGE: r_temp_change,
+        }
+
+        return r_energy_use + r_comfort + r_temp_change
 
     def get_temp_change_reward(self):
-        if self.prev_temp is not None:
-            return -abs(self.prev_temp - self.building.current_temperature)
         return 0
+        # if self.prev_temp is None:
+        #     return 0
+        # return -abs(self.prev_temp - self.building.current_temperature)
 
     def get_comfort_reward(self):
-        return - abs(self.desired_temperature - self.building.current_temperature)
+        if self.desired_temperature - 1 <= self.building.current_temperature <= self.desired_temperature + 1:
+            return 0
+        else:
+            return self.COMFORT_PENALTY
 
     def get_energy_use_reward(self):
-        energy_use = self.time_step.total_seconds() * self.building.thermal_power
+        energy_use = abs(self.time_step.total_seconds() * self.building.thermal_power)
         # Scale reward to [0,3]
-        return -np.interp(energy_use, (0, self.max_energy_use_heating), (0, 3))
+        return -energy_use
         # penalize if out of bounds
 
     def reset(self):
