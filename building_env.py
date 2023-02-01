@@ -22,8 +22,10 @@ class BuildingEnv(gym.Env):
                  maximum_heating_power,
                  time_step: timedelta,
                  floor_area,
+                 initial_building_temperature=16,
                  episode_length=timedelta(days=2),
-                 desired_temperature=21):
+                 desired_temperature=21,
+                 ):
         """
         :param heat_mass_capacity: The heat mass capacity of the building.
         :param heat_transmission: The heat transmission rate of the building.
@@ -35,16 +37,17 @@ class BuildingEnv(gym.Env):
         :param desired_temperature: The desired temperature in the building, defaults to 21 degrees Celsius.
         """
         # Set up the outside temperature model, and get the initial temperature and time.
-        self.temp_model = OutsideTemp(time_step, days=episode_length)
-        self.prev_temp = self.temp_model.get_outside_temperature(0)
-        self.real_time = self.temp_model.get_time_hours(0)
+        self.temp_model = OutsideTemp(time_step, episode_length=episode_length)
+        self.temp_model.new_sample()
+        self.prev_temp = self.temp_model.get_temperature(0)
+        self.initial_temperature = initial_building_temperature
 
         # Set up the building model.
         self.building = Building(heat_mass_capacity=heat_mass_capacity,
                                  heat_transmission=heat_transmission,
                                  maximum_cooling_power=maximum_cooling_power,
                                  maximum_heating_power=maximum_heating_power,
-                                 initial_building_temperature=self.prev_temp,
+                                 initial_building_temperature=initial_building_temperature,
                                  time_step_size=time_step,
                                  conditioned_floor_area=floor_area)
 
@@ -64,7 +67,6 @@ class BuildingEnv(gym.Env):
         self.action_space = gym.spaces.Box(low=np.array([7, 15]), high=np.array([30, 45]),
                                            shape=(2,))
 
-
     def render(self, mode='human'):
         if mode == 'human':
             print(f'Current temperature: {self.building.current_temperature:.2f}')
@@ -75,12 +77,13 @@ class BuildingEnv(gym.Env):
     def step(self, action):
         self.i += 1
         heating_setpoint, cooling_setpoint = action
-        outside_temperature = self.temp_model.get_outside_temperature(self.i)
+        outside_temperature = self.temp_model.get_temperature(self.i)
+        time = self.temp_model.get_time(self.i)
 
         self.prev_temp = self.building.current_temperature
         self.building.step(outside_temperature, heating_setpoint, cooling_setpoint)
 
-        obs = np.array([self.building.current_temperature, self.building.thermal_power], dtype=float32)
+        obs = np.array([self.building.current_temperature, self.building.thermal_power, time], dtype=float32)
         reward = self.calculate_reward()
         done = self.i >= self.episode_length_steps
         info = {"Current temperature": self.building.current_temperature, "Thermal power": self.building.thermal_power}
@@ -102,8 +105,16 @@ class BuildingEnv(gym.Env):
         energy_use = self.time_step.total_seconds() * self.building.thermal_power
         # Scale reward to [0,3]
         return -np.interp(energy_use, (0, self.max_energy_use_heating), (0, 3))
+        # penalize if out of bounds
 
     def reset(self):
         self.i = 0
-        self.building.current_temperature = self.temp_model.sample().get_outside_temperature(0)
-        return np.array([self.building.current_temperature, self.building.thermal_power], dtype=float32)
+        self.temp_model.new_sample()
+        self.prev_temp = self.temp_model.get_temperature(0)
+        time = self.temp_model.get_time(0)
+        self.building.current_temperature = self.initial_temperature
+        self.building.thermal_power = 0
+        obs = np.array([self.building.current_temperature,
+                        self.building.thermal_power,
+                        time], dtype=float32)
+        return obs

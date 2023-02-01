@@ -10,6 +10,7 @@ matplotlib = "*"
 numpy = "*"
 jupyter = "*"
 meteostat = "*"
+ipython = "*"
 
 [dev-packages]
 

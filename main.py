@@ -12,15 +12,15 @@ from building_plot_callback import BuildingPlotCallback
 
 # %%
 
-conditioned_floor_area = 100
+floor_area = 100
 env = eval_env = BuildingEnv(
-    heat_mass_capacity=165000 * conditioned_floor_area,
+    heat_mass_capacity=165000 * floor_area,
     heat_transmission=200,
     maximum_cooling_power=-10000,
     maximum_heating_power=10000,
     initial_building_temperature=16,
     time_step=timedelta(minutes=15),
-    floor_area=conditioned_floor_area
+    floor_area=floor_area
 )
 
 # %%
@@ -39,12 +39,11 @@ eval_callback = EvalCallback(eval_env, eval_freq=1000, callback_after_eval=stop_
 
 # %%
 model = A2C("MlpPolicy", normalized_env).learn(total_timesteps=10000, callback=[plot_callback])
-# rewards = monitor_env.env_method("get_episode_rewards")
 
 # %%
 # plot_output(plot_callback.temperatures, plot_callback.thermal_powers)
-BuildingPlotCallback.plot_output_2(plot_callback.temperatures[19500:], plot_callback.thermal_powers[19500:])
+BuildingPlotCallback.plot_output_2(plot_callback.temperatures[9500:], plot_callback.thermal_powers[9500:])
 
 # %%
-plt.plot(plot_callback.thermal_powers[19000:])
+plt.plot(plot_callback.thermal_powers[9000:])
 plt.show()

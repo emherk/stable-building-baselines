@@ -15,34 +15,31 @@ class OutsideTemp:
     file_name = "outside_temps.csv"
     temperature_df = pd.read_csv(file_name)
 
-    def __init__(self, time_step_size, days=timedelta(days=1)):
+    def __init__(self, time_step_size, episode_length=timedelta(days=1)):
         self.time_step_size = time_step_size
         self.interp_df = self.interpolate(time_step_size, self.temperature_df)
         self.time_list = self.interp_df.index.to_list()
-        self.start = self.sample(days=days)
-        self.days = days
-        self.sample()
+        self.episode_length = episode_length
+        self.start = 0
 
-    def get_outside_temperature(self, i):
+    def get_temperature(self, i):
         """
         Interpolate temperature from the outside temperature list
         :return: the interpolated temperature
         """
         return self.interp_df.iloc[self.start + i].temp
 
-    def get_time_hours(self, i):
+    def get_time(self, i):
         return int(self.time_list[self.start + i].strftime("%H%M"))
 
-    def sample(self):
-        hours = self.days / timedelta(hours=1)
+    def new_sample(self):
+        episode_length_steps = ceil(self.episode_length / self.time_step_size)
+
         # see if the requested number of days fits into the data
-        remaining_temp = len(self.temperature_df) - ceil(hours)
+        remaining_temp = len(self.interp_df) - episode_length_steps
         if remaining_temp < 0:
-            raise ValueError(
-                f"Attempted to run for longer ({self.days}) than temperature data is available ({len(self.temperature_df)})")
-        remaining_temp = np.interp(remaining_temp, (0, len(self.temperature_df) - 1), (0, len(self.interp_df) - 1))
+            raise ValueError(f"Attempted to run for longer ({self.episode_length}) than temperature data is available ({len(self.temperature_df)})")
         self.start = random.randint(0, remaining_temp)
-        return self
 
     @classmethod
     def interpolate(cls, time_step_size, df):
@@ -50,8 +47,10 @@ class OutsideTemp:
         Interpolate the temperature data to match the time step size of the simulation.
         """
         df = df.set_index("time")
+        df.index = pd.to_datetime(df.index)
         freq = f"{time_step_size.total_seconds() / 60:.0f}T"
-        return df.resample(freq).interpolate()
+        df = df.resample(freq).interpolate()
+        return df
 
     @classmethod
     def _fetch_outside_temperature(cls):
