@@ -4,7 +4,6 @@ import random
 from datetime import timedelta
 from math import ceil
 
-import numpy as np
 import pandas as pd
 from meteostat import Hourly, Stations
 

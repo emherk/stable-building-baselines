@@ -5,7 +5,6 @@ name = "pypi"
 
 [packages]
 stable-baselines3 = {extras = ["extra"], version = "*"}
-simplesimple = {git = "https://github.com/timtroendle/simple-simple"}
 matplotlib = "*"
 numpy = "*"
 jupyter = "*"

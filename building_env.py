@@ -7,7 +7,7 @@ from random import randint
 import gym
 import numpy as np
 from numpy import float32
-from simplesimple import Building
+from building_model import Building
 
 from outside_temp import OutsideTemp
 
@@ -68,12 +68,10 @@ class BuildingEnv(gym.Env):
         self.current_rewards = {}
 
         # Set up the action and observation spaces for the environment.
-        # This is a continuous action space, with two actions: heating setpoint and cooling setpoint.
         # The observation space is a continuous space, with three observations:
-        # building temperature, thermal power, and current time of day in the format "%H%M".
-        self.observation_space = gym.spaces.Box(low=np.array([-30, 0, 0]), high=np.array([60, 10000, 2400]), shape=(3,))
-        self.action_space = gym.spaces.Box(low=np.array([7, 15]), high=np.array([30, 45]),
-                                           shape=(2,))
+        # building temperature, outside temperature, and current time of day in the format "%H%M".
+        self.observation_space = gym.spaces.Box(low=np.array([-30, -50, 0]), high=np.array([60, 60, 2400]), shape=(3,))
+        self.action_space = gym.spaces.Box(low=maximum_cooling_power, high=maximum_heating_power, shape=(1,), dtype=float32)
 
     def render(self, mode='human'):
         if mode == 'human':
@@ -84,14 +82,14 @@ class BuildingEnv(gym.Env):
 
     def step(self, action):
         self.i += 1
-        heating_setpoint, cooling_setpoint = action
+        power = action[0]
         outside_temperature = self.temp_model.get_temperature(self.i)
         time = self.temp_model.get_time(self.i)
 
         self.prev_temp = self.building.current_temperature
-        self.building.step(outside_temperature, heating_setpoint, cooling_setpoint)
+        self.building.step(outside_temperature, power)
 
-        obs = np.array([self.building.current_temperature, self.building.thermal_power, time], dtype=float32)
+        obs = np.array([self.building.current_temperature, outside_temperature, time], dtype=float32)
         reward = self.calculate_reward()
         done = self.i >= self.episode_length_steps
         info = {}
