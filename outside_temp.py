@@ -8,11 +8,18 @@ import pandas as pd
 from meteostat import Hourly, Stations
 
 
+
 class OutsideTemp:
     backup_outside_temp_list = [4.3, 4.3, 4.4, 4.4, 4.3, 4.3, 4.7, 5.2, 7.0, 5.3, 8.7, 10.0, 10.7,
                                 11.3, 13.6, 10.5, 9.4, 9.0, 9.3, 9.5, 9.3, 9.3, 8.3, 8.3]
-    file_name = "outside_temps.csv"
-    temperature_df = pd.read_csv(file_name)
+
+    temperature_df = None
+    @classmethod
+    def get_temp_df(cls):
+        if cls.temperature_df is None:
+            file_name = "outside_temps.csv"
+            cls.temperature_df = pd.read_csv(file_name) if os.path.exists(file_name) else cls.fetch_outside_temperature()
+        return cls.temperature_df
 
     def __init__(self, time_step_size, episode_length=timedelta(days=1)):
         self.time_step_size = time_step_size
@@ -52,7 +59,7 @@ class OutsideTemp:
         return df
 
     @classmethod
-    def _fetch_outside_temperature(cls):
+    def fetch_outside_temperature(cls):
         """
         The function fetch_outside_temperature fetches hourly temperature data from a weather station in Bavaria,
         filters out rows with missing data, and removes rows that are more than an hour away from their adjacent rows.
@@ -77,7 +84,9 @@ class OutsideTemp:
 
         # Save the fetched data to a csv, with a new name
         i = 0
-        while os.path.exists(f"{cls.file_name}_{i}.csv"):
+        while os.path.exists(f"outside_temps_{i}.csv"):
             i += 1
 
-        hourly_df.to_csv(f"{cls.file_name}_{i}.csv", index=True)
+        hourly_df.to_csv(f"outside_temps_{i}.csv", index=True)
+        cls.file_name = f"outside_temps_{i}.csv"
+        return hourly_df
