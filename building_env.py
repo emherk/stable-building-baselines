@@ -7,8 +7,8 @@ from random import randint
 import gym
 import numpy as np
 from numpy import float32
-from building_model import Building
 
+from building_model import Building
 from outside_temp import OutsideTemp
 
 
@@ -19,6 +19,10 @@ class BuildingEnv(gym.Env):
 
     metadata = {'render.modes': ['human']}
     COMFORT_PENALTY = -10000
+    MAX_TEMP = 42
+    MIN_TEMP = 2
+    MAX_OUTSIDE_TEMP = 36
+    MIN_OUTSIDE_TEMP = -16
 
     class RewardTypes(str, Enum):
         ENERGY = auto()
@@ -70,8 +74,8 @@ class BuildingEnv(gym.Env):
         # Set up the action and observation spaces for the environment.
         # The observation space is a continuous space, with three observations:
         # building temperature, outside temperature, and current time of day in the format "%H%M".
-        self.observation_space = gym.spaces.Box(low=np.array([-30, -50, 0]), high=np.array([60, 60, 2400]), shape=(3,))
-        self.action_space = gym.spaces.Box(low=maximum_cooling_power, high=maximum_heating_power, shape=(1,), dtype=float32)
+        self.observation_space = gym.spaces.Box(low=-1, high=+1, shape=(3,))
+        self.action_space = gym.spaces.Box(low=-1, high=+1, shape=(1,), dtype=float32)
 
     def render(self, mode='human'):
         if mode == 'human':
@@ -82,50 +86,72 @@ class BuildingEnv(gym.Env):
 
     def step(self, action):
         self.i += 1
-        power = action[0]
+        normalized_power = action[0]
+        power = np.interp(normalized_power, (-1, 1),
+                          (self.building.maximum_cooling_power, self.building.maximum_heating_power))
         outside_temperature = self.temp_model.get_temperature(self.i)
         time = self.temp_model.get_time(self.i)
 
         self.prev_temp = self.building.current_temperature
         self.building.step(outside_temperature, power)
 
-        obs = np.array([self.building.current_temperature, outside_temperature, time], dtype=float32)
+        # normalize the building temperature
+        building_temp_normalized = (self.building.current_temperature - self.MIN_TEMP) / (self.MAX_TEMP - self.MIN_TEMP)
+        # normalize the outside temperature
+        outside_temp_normalized = (outside_temperature - self.MIN_OUTSIDE_TEMP) / (
+                self.MAX_OUTSIDE_TEMP - self.MIN_OUTSIDE_TEMP)
+        # normalize the time
+        time = time / 2400
+
+        obs = np.array([building_temp_normalized, outside_temp_normalized, time], dtype=float32)
         reward = self.calculate_reward()
         done = self.i >= self.episode_length_steps
         info = {}
-        #     "Current temperature": self.building.current_temperature,
-        #     "Thermal power": self.building.thermal_power,
-        # }
 
         return obs, reward, done, info
 
     def calculate_reward(self):
+        """
+        Calculates the reward for the current step.
+        The reward is made up of the energy use reward and the comfort reward.
+        :return: The reward for the current step.
+        """
         r_energy_use = self.get_energy_use_reward()
         r_comfort = self.get_comfort_reward()
-        r_temp_change = self.get_temp_change_reward()
 
         self.current_rewards = {
             self.RewardTypes.ENERGY: r_energy_use,
             self.RewardTypes.COMFORT: r_comfort,
-            self.RewardTypes.CHANGE: r_temp_change,
+            self.RewardTypes.CHANGE: 0,
         }
 
-        return r_energy_use + r_comfort + r_temp_change
+        return (r_energy_use + r_comfort) / 2
 
-    def get_temp_change_reward(self):
-        return 0
+    # def get_temp_change_reward(self):
+    #     return 0
         # if self.prev_temp is None:
         #     return 0
         # return -abs(self.prev_temp - self.building.current_temperature)
 
     def get_comfort_reward(self):
-        if self.desired_temperature - 1 <= self.building.current_temperature <= self.desired_temperature + 1:
-            return 0
-        return self.COMFORT_PENALTY
+        t = self.building.current_temperature
+        # if the temperature is outside a reasonable range, return -1
+        if t <= self.MIN_TEMP or t >= self.MAX_TEMP:
+            return -1
+        # normalize the difference between the current temperature and the desired temperature
+        # to be between -1 and 1
+        t_normalized_difference = (t - self.desired_temperature) / ((self.MAX_TEMP - self.MIN_TEMP) / 2)
+        # calculate the reward based on the normalized difference
+        reward = 1 - (t_normalized_difference * 4) ** 2
+        if reward < -1:
+            return -1
+        return reward
 
     def get_energy_use_reward(self):
-        energy_use = abs(self.time_step.total_seconds() * self.building.thermal_power)
-        return -energy_use
+        # normalize the building's thermal power
+        power = self.building.thermal_power / max(self.building.maximum_cooling_power,
+                                                  self.building.maximum_heating_power)
+        return 1 - power
 
     def reset(self):
         self.i = 0
@@ -135,6 +161,6 @@ class BuildingEnv(gym.Env):
         self.building.current_temperature = self.random_temp()
         self.building.thermal_power = 0
         obs = np.array([self.building.current_temperature,
-                        self.building.thermal_power,
+                        self.prev_temp,
                         time], dtype=float32)
         return obs

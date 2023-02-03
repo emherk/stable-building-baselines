@@ -1,5 +1,7 @@
 class Building():
-    """A simple Building Energy Model.
+    """
+    Forked from: https://github.com/timtroendle/simple-simple
+    A simple Building Energy Model.
 
     Consisting of one thermal capacity and one resistance, this model is derived from the
     hourly dynamic model of the ISO 13790. It models heating and cooling energy demand only.
@@ -25,8 +27,8 @@ class Building():
             raise ValueError("Maximum cooling power [W] must not be positive.")
         self.__heat_mass_capacity = heat_mass_capacity
         self.__heat_transmission = heat_transmission
-        self.__maximum_cooling_power = maximum_cooling_power
-        self.__maximum_heating_power = maximum_heating_power
+        self.maximum_cooling_power = maximum_cooling_power
+        self.maximum_heating_power = maximum_heating_power
         self.current_temperature = initial_building_temperature
         self.thermal_power = 0
         self.__time_step_size = time_step_size
@@ -63,10 +65,10 @@ class Building():
         else:
             if next_temperature_no_power < heating_setpoint:
                 setpoint = heating_setpoint
-                max_power = self.__maximum_heating_power
+                max_power = self.maximum_heating_power
             else:
                 setpoint = cooling_setpoint
-                max_power = self.__maximum_cooling_power
+                max_power = self.maximum_cooling_power
             ten_watt_per_square_meter_power = 10 * self.__conditioned_floor_area
             next_temperature_power_10 = next_temperature(ten_watt_per_square_meter_power)
             unrestricted_power = (ten_watt_per_square_meter_power *

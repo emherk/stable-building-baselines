@@ -24,11 +24,11 @@ env = eval_env = BuildingEnv(
 )
 
 log_dir = "tmp/gym"
-env = make_vec_env(lambda: env, n_envs=1, monitor_dir=log_dir)
-eval_env = make_vec_env(lambda: eval_env, n_envs=1)
-
-env = VecNormalize(env)
-eval_env = VecNormalize(eval_env)
+# env = make_vec_env(lambda: env, n_envs=1, monitor_dir=log_dir)
+# eval_env = make_vec_env(lambda: eval_env, n_envs=1)
+#
+# env = VecNormalize(env)
+# eval_env = VecNormalize(eval_env)
 plot_callback = BuildingPlotCallback(log_dir)
 
 stop_train_callback = StopTrainingOnNoModelImprovement(max_no_improvement_evals=5,
@@ -82,15 +82,3 @@ building = Building(
     time_step_size=timedelta(minutes=15),
     conditioned_floor_area=floor_area
 )
-
-# %%
-building.step(12, 10000)
-print(building.thermal_power, building.current_temperature)
-
-# %%
-model = A2C.load("A2C trained 1M .zip", verbose=1)
-
-# %%
-
-print(model.observation_space, model.action_space)
-env
