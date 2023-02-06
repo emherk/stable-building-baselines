@@ -23,7 +23,7 @@ class OutsideTemp:
 
     def __init__(self, time_step_size, episode_length=timedelta(days=1)):
         self.time_step_size = time_step_size
-        self.interp_df = self.interpolate(time_step_size, self.temperature_df)
+        self.interp_df = self.interpolate(time_step_size, self.get_temp_df())
         self.time_list = self.interp_df.index.to_list()
         self.episode_length = episode_length
         self.start = 0

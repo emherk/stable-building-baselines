@@ -1,93 +1,83 @@
 # %%
-from gym.wrappers import Monitor
+import pandas as pd
 from matplotlib import pyplot as plt
 from stable_baselines3.common.callbacks import BaseCallback
 
-from building_env import BuildingEnv
-
 
 class BuildingPlotCallback(BaseCallback):
-    def __init__(self, log_dir: str):
+    def __init__(self):
         super(BuildingPlotCallback, self).__init__()
-        self.log_dir = log_dir
         self.temperatures = []
         self.thermal_powers = []
-        self.rewards = {BuildingEnv.RewardTypes.ENERGY: [],
-                        BuildingEnv.RewardTypes.COMFORT: [],
-                        BuildingEnv.RewardTypes.CHANGE: []}
+        self.energy_rewards = []
+        self.comfort_rewards = []
 
     def _on_step(self):
-        env = self.model.get_env()
+        # env = self.model.get_env()
+        env = self.training_env
 
-        current_rewards = env.get_attr('current_rewards')[0]
-        for key, value in current_rewards.items():
-            self.rewards[key].append(value)
+        current_energy_reward = env.get_attr('energy_reward')[0]
+        current_comfort_reward = env.get_attr('comfort_reward')[0]
+        self.energy_rewards.append(current_energy_reward)
+        self.comfort_rewards.append(current_comfort_reward)
 
         building = env.get_attr('building')[0]
         self.temperatures.append(building.current_temperature)
-        self.thermal_powers.append(abs(building.thermal_power))
+        self.thermal_powers.append(building.thermal_power)
 
     def _on_training_end(self):
-        self.plot_output_2(self.temperatures, self.thermal_powers, "Temperature", "Power")
-        self.plot_output_2(self.rewards[BuildingEnv.RewardTypes.ENERGY], self.rewards[BuildingEnv.RewardTypes.COMFORT],
-                           "Energy Reward", "Comfort Reward")
+        self.plot_moving_avg(self.temperatures, "Temperatures", ylabel="Temperature (°C)", title="Temperature")
+        self.plot_moving_avg(self.thermal_powers, "Power", ylabel="Power (W)", title="Power")
 
-        monitor: Monitor = self.model.get_env().venv.envs[0]
-        episode_lengths = monitor.get_episode_lengths()
-        episode_rewards = monitor.get_episode_rewards()
-        avg_rewards = [i / j for i, j in zip(episode_rewards, episode_lengths)]
-        plt.plot(avg_rewards)
-        plt.xlabel("Episode")
-        plt.ylabel("Average Reward")
-        plt.show()
+        rewards = [(x + y) / 2 for x, y in zip(self.energy_rewards, self.comfort_rewards)]
+
+        episode_length = int(self.training_env.get_attr('episode_length_steps')[0])
 
         episode_temperatures = []
         episode_powers = []
+        episode_rewards = []
 
         total = 0
-        for length in episode_lengths:
-            episode_mean_temperature = sum(self.temperatures[total:total + length]) / length
-            episode_mean_power = sum(self.thermal_powers[total:total + length]) / length
+        # calculate average temperature and power for each episode
+        while total + episode_length < len(self.temperatures):
+            episode_mean_reward = sum(rewards[total:total + episode_length]) / episode_length
+            episode_mean_temperature = sum(self.temperatures[total:total + episode_length]) / episode_length
+            episode_mean_power = sum(self.thermal_powers[total:total + episode_length]) / episode_length
             episode_temperatures.append(episode_mean_temperature)
             episode_powers.append(episode_mean_power)
-            total += length
+            episode_rewards.append(episode_mean_reward)
+            total += episode_length
 
-        self.plot_output_2(episode_temperatures, episode_powers, "Avg Temperature", "Avg Power")
+        plt.plot(episode_rewards)
+        plt.xlabel("Episode")
+        plt.ylabel("Episode Reward")
+        plt.show()
 
-    @classmethod
-    def plot_output_2(cls, list1, list2, label1, label2):
+        # plot average temperature and power for each episode
         fig, ax1 = plt.subplots()
         color = 'tab:red'
         ax1.set_xlabel('Time')
-        ax1.set_ylabel(label1, color=color)
-        ax1.plot(list1, color=color)
+        ax1.set_ylabel('Avg Temperature', color=color)
+        ax1.plot(episode_temperatures, color=color)
         ax1.tick_params(axis='y', labelcolor=color)
 
         ax2 = ax1.twinx()
         color = 'tab:blue'
-        ax2.set_ylabel(label2, color=color)
-        ax2.plot(list2, color=color)
+        ax2.set_ylabel('Avg Power', color=color)
+        ax2.plot(episode_powers, color=color)
         ax2.tick_params(axis='y', labelcolor=color)
 
         fig.tight_layout()
         plt.show()
 
     @classmethod
-    def plot_output(cls, temperature, thermal_power):
-        # plot the data
-        plt.plot(temperature, label="Temperature")
-
-        # add labels and title
+    def plot_moving_avg(cls, values_list, label, moving_avg_window=1000, ylabel=None, title=None):
+        # get moving average of rewards with pandas
+        series = pd.Series(values_list)
+        energy_rewards_moving_avg = series.rolling(moving_avg_window).mean()
+        plt.plot(energy_rewards_moving_avg, label=label)
         plt.xlabel('Time (steps)')
-        plt.ylabel('Temperature (Celsius)')
-        plt.title('Temperature over Time')
-
-        # display the plot
-        plt.show()
-
-
-        plt.plot(thermal_power)
-        plt.xlabel('Time (steps)')
-        plt.ylabel('Power (Watts)')
-        plt.title('Power over Time')
+        plt.ylabel(ylabel)
+        plt.title(title)
+        plt.legend()
         plt.show()
